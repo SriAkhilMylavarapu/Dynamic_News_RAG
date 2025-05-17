@@ -1,1 +1,1 @@
-# CS Research Paper Simplifier
+# Dynamic RAG System for Real-time News Analysis
