@@ -29,13 +29,14 @@ Sources:
   1. Links are normalised before hashing: `utm_*` and other tracking parameters, AMP variants, `www.` and fragments are stripped.
   2. Article bodies are hashed, so the same wire copy (PTI/Reuters/AP) republished by several outlets is stored once.
   3. Articles about the same event are grouped into a story by comparing the embeddings of their title and opening paragraph.
-- **Uses hybrid search:** SQLite FTS5 BM25 for keyword matching plus BGE vector search in Chroma. The two are combined with min-max normalised convex fusion (reciprocal rank fusion is available as an option). The result is then weighted towards recent articles and capped per article and per story, so one source can't fill every slot.
+- **Uses hybrid search:** SQLite FTS5 BM25 for keyword matching plus BGE vector search in Chroma. The two are combined with min-max normalised convex fusion (reciprocal rank fusion is available as an option). The result is then weighted towards recent articles, capped per article, per story and per outlet (2 each by default) so one source can't fill every slot, and cut off below 40% of the best match's score so weak matches don't pad the answer.
+- **Tells round-up questions from topical ones:** "What are the top stories in India today?", "tech headlines" or "catch me up" aren't answered by word matching, which would find "Top stocks to watch today". They rank stories by how many outlets covered them and how recently, read the scope from the question (India, world, business, tech, science, sports), and give the model the opening paragraphs from up to three outlets per story. Routine service pieces (daily fuel prices, "stocks to buy", horoscopes, registration guides) are left out unless the question asks for them.
 - **Understands time in questions:** "today", "yesterday", "this week" and "past 3 days" become date filters, and words like "latest" make recency count for more.
 - **Cites every claim:** answers carry numbered citations with outlet, date and link. The model is told to use only the retrieved text, to point out when sources disagree, and to ignore any instructions inside article text.
 - **Chat with follow-up questions:** a follow-up like "what did the opposition say about it?" is rewritten into a standalone search query using the conversation so far.
 - **Daily briefing:** summarises the stories covered by the most outlets in the last N hours.
 - **Built-in evaluation:** `newsrag eval` measures recall@k and MRR for BM25-only, dense-only and hybrid retrieval on your own data.
-- **Light to re-run and host:** conditional GETs (ETag / Last-Modified) skip feeds that haven't changed, requests are rate-limited per domain, robots.txt is respected, and articles older than 30 days are deleted automatically. Embeddings run on CPU through ONNX, so PyTorch isn't needed.
+- **Light to re-run and host:** conditional GETs (ETag / Last-Modified) skip feeds that haven't changed, each site is fetched by its own worker (sites in parallel, at most one request per second to any one site), articles are saved in batches as they arrive so an interrupted run keeps its work, video and photo pages are skipped, robots.txt is respected, and articles older than 30 days are deleted automatically. Embeddings run on CPU through ONNX, so PyTorch isn't needed.
 
 ## How it works
 
@@ -52,10 +53,13 @@ flowchart LR
     K --> DB[(SQLite<br/>articles + FTS5)]
     K --> V[(Chroma<br/>BGE vectors)]
     subgraph Ask ["newsrag ask / chat"]
-        Q[question] --> T[time-window parsing]
+        Q[question] --> I{round-up or topical?}
+        I -->|"top stories in India"| R[rank stories by outlets × recency]
+        R --> L
+        I -->|topical| T[time-window parsing]
         T --> B[BM25] & E[dense]
         B & E --> FU[convex fusion<br/>× recency decay]
-        FU --> DV[per-article / per-story caps]
+        FU --> DV[per-article / story / outlet caps]
         DV --> L[Claude, cited answer]
     end
     DB --> B

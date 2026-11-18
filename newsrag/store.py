@@ -201,15 +201,21 @@ class Store:
         return [(r["chunk_id"], -r["rank"]) for r in rows]
 
     @staticmethod
-    def _filters(since, categories, sources) -> tuple[list[str], list]:
+    def _filters(since, categories, sources, top_region: str | None = None) -> tuple[list[str], list]:
         sql: list[str] = []
         params: list = []
         if since is not None:
             sql.append("AND a.published_ts >= ?")
             params.append(_ts(since))
         if categories:
-            sql.append(f"AND a.category IN ({','.join('?' * len(categories))})")
-            params.extend(categories)
+            cats = f"a.category IN ({','.join('?' * len(categories))})"
+            if top_region:
+                # e.g. India-section feeds from any outlet, plus Indian outlets' front pages
+                sql.append(f"AND ({cats} OR (a.category = 'top' AND a.region = ?))")
+                params.extend([*categories, top_region])
+            else:
+                sql.append(f"AND {cats}")
+                params.extend(categories)
         if sources:
             sql.append(f"AND lower(a.source) IN ({','.join('?' * len(sources))})")
             params.extend(s.lower() for s in sources)
@@ -236,27 +242,40 @@ class Store:
         }
 
     @_locked
-    def top_stories(self, since: datetime, categories: Sequence[str] | None = None, limit: int = 10) -> list[dict]:
-        """Stories published since `since`, ranked by how many outlets covered them."""
+    def top_stories(
+        self,
+        since: datetime,
+        categories: Sequence[str] | None = None,
+        limit: int = 10,
+        *,
+        sources: Sequence[str] | None = None,
+        top_region: str | None = None,
+    ) -> list[dict]:
+        """Candidate stories published since `since`, most widely covered first.
+
+        Only articles inside the filter count towards a story's outlet total.
+        Final ranking (recency, routine pieces) happens in assistant.rank_stories.
+        """
         sql = [
             """SELECT a.story_id AS story_id, COUNT(*) AS articles, COUNT(DISTINCT a.source) AS outlets,
-                      MAX(a.published_ts) AS latest_ts, GROUP_CONCAT(DISTINCT a.source) AS source_list
+                      MAX(a.published_ts) AS latest_ts
                FROM articles a WHERE 1=1"""
         ]
-        filters, params = self._filters(since, categories, None)
+        filters, params = self._filters(since, categories, sources, top_region)
         sql.extend(filters)
         sql.append("GROUP BY a.story_id ORDER BY outlets DESC, articles DESC, latest_ts DESC LIMIT ?")
         params.append(limit)
+        member_sql = ["SELECT a.id, a.title, a.source, a.url, a.published_ts, a.category, a.story_id FROM articles a WHERE a.story_id = ?"]
+        member_sql.extend(filters)
+        member_sql.append("ORDER BY a.published_ts DESC")
         stories = []
         for r in self.conn.execute(" ".join(sql), params).fetchall():
-            members = self.conn.execute(
-                "SELECT id, title, source, url, published_ts, category FROM articles WHERE story_id = ? ORDER BY published_ts DESC",
-                (r["story_id"],),
-            ).fetchall()
+            members = self.conn.execute(" ".join(member_sql), [r["story_id"], *params[:-1]]).fetchall()
             stories.append(
                 {
                     "story_id": r["story_id"],
                     "outlets": r["outlets"],
+                    "article_count": r["articles"],
                     "articles": [dict(m) | {"published_at": _dt(m["published_ts"]).isoformat()} for m in members],
                     "latest_at": _dt(r["latest_ts"]).isoformat(),
                 }

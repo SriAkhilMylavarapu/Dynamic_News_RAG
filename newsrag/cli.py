@@ -73,7 +73,7 @@ def cmd_ask(args) -> None:
         print(json.dumps(answer.to_dict(), indent=2))
         return
     if answer.time_window:
-        print(f"(time filter: {answer.time_window})")
+        print(f"({answer.time_window})")
     print("\n" + answer.text)
     _print_sources(answer.sources, answer.text if assistant.llm else None)
     if args.verbose:

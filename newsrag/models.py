@@ -56,10 +56,12 @@ class Answer:
     sources: list[Hit]
     time_window: str | None
     timings_ms: dict[str, float]
+    mode: str = "topical"  # or "overview" (top-stories questions)
 
     def to_dict(self) -> dict:
         return {
             "question": self.question,
+            "mode": self.mode,
             "answer": self.text,
             "time_window": self.time_window,
             "timings_ms": self.timings_ms,

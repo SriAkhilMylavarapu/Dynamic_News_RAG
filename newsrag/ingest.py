@@ -3,7 +3,10 @@
 from __future__ import annotations
 
 import logging
+import queue
+import re
 import time
+from collections import defaultdict
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
@@ -23,6 +26,14 @@ from .vectors import Embedder, VectorIndex
 log = logging.getLogger(__name__)
 
 MIN_SUMMARY_CHARS = 120
+INDEX_BATCH = 25  # articles are saved in batches as they're scraped, so an interrupted run keeps its work
+
+# Video, photo and audio pages carry little or no article text.
+_MEDIA_PATH = re.compile(
+    r"/(videos?|video-news|photos?|photogallery|photo-gallery|gallery|galleries|slideshows?|"
+    r"podcasts?|audio|web-?stories|visual-?stories|shorts|reels)(/|$)",
+    re.I,
+)
 
 
 @dataclass
@@ -38,6 +49,8 @@ class Candidate:
 def looks_like_article(url: str) -> bool:
     """Section fronts like https://site.com/india/ show up in feeds; skip them."""
     path = urlsplit(url).path.strip("/")
+    if _MEDIA_PATH.search("/" + path):
+        return False
     return bool(path) and (path.count("/") >= 1 or len(path) > 30 or any(c.isdigit() for c in path))
 
 
@@ -143,19 +156,47 @@ class Ingestor:
         ]
         log.info("%d new links to fetch (%d already known)", len(fresh), len(known))
 
-        # 3. Scrape article pages in parallel (Fetcher rate-limits per domain).
-        scraped: list[tuple[Candidate, str, bool]] = []
-        with ThreadPoolExecutor(self.settings.max_workers) as pool:
-            futures = {pool.submit(self.scrape, c): c for c in fresh}
-            for future in as_completed(futures):
-                result = future.result()
-                if result:
-                    scraped.append((futures[future], *result))
-        scraped.sort(key=lambda item: item[0].published_at or now)
+        # 3. Scrape: one worker per site, so sites are fetched in parallel while
+        #    each site still gets at most one request per `per_domain_delay`.
+        #    Results stream back and are indexed in batches as they arrive.
+        by_domain: dict[str, list[Candidate]] = defaultdict(list)
+        for cand in sorted(fresh, key=lambda c: c.published_at or now, reverse=True):
+            by_domain[urlsplit(cand.url).netloc].append(cand)
+        results: queue.Queue = queue.Queue()
 
-        # 4. Dedupe by content, group into stories, chunk, embed, store.
+        def scrape_domain(cands: list[Candidate]) -> None:
+            for cand in cands:
+                try:
+                    result = self.scrape(cand)
+                except Exception as exc:  # one bad page must not stop the site's queue
+                    log.warning("scrape crashed for %s: %s", cand.url, exc)
+                    result = None
+                results.put((cand, result))
+
+        batch: list[tuple[Candidate, str, bool]] = []
+        workers = max(1, min(len(by_domain), 32))  # I/O-bound; the per-site delay is what limits load
+        with ThreadPoolExecutor(workers) as pool:
+            for cands in by_domain.values():
+                pool.submit(scrape_domain, cands)
+            for done in range(1, len(fresh) + 1):
+                cand, result = results.get()
+                if result:
+                    batch.append((cand, *result))
+                if len(batch) >= INDEX_BATCH or (done == len(fresh) and batch):
+                    self._store_batch(batch, report, now)
+                    batch = []
+                if done % 100 == 0:
+                    log.info("scraped %d/%d pages, %d articles added so far", done, len(fresh), report.added)
+
+        # 4. Retention.
+        report.pruned = self.prune(oldest_allowed)
+        report.seconds = round(time.monotonic() - started, 2)
+        return report
+
+    def _store_batch(self, scraped: list[tuple[Candidate, str, bool]], report: IngestReport, now: datetime) -> None:
+        """Dedupe by content, group into stories, chunk, embed and save one batch."""
         articles: list[tuple[Article, list[str]]] = []
-        for cand, text, full in scraped:
+        for cand, text, full in sorted(scraped, key=lambda item: item[0].published_at or now):
             chash = content_hash(text)
             if self.store.find_by_content_hash(chash) or any(a.content_hash == chash for a, _ in articles):
                 report.duplicate_content += 1
@@ -174,14 +215,8 @@ class Ingestor:
                     chunks,
                 )
             )
-
         if articles:
             self._index(articles, report)
-
-        # 5. Retention.
-        report.pruned = self.prune(oldest_allowed)
-        report.seconds = round(time.monotonic() - started, 2)
-        return report
 
     def _index(self, articles: list[tuple[Article, list[str]]], report: IngestReport) -> None:
         leads = self.embedder.embed_documents([embedding_text(a.title, chunks[0][:500]) for a, chunks in articles])

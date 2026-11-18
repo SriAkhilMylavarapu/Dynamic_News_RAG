@@ -65,7 +65,7 @@ def evaluate(assistant: NewsAssistant, n: int = 50, use_llm: bool | None = None)
         for case in cases:
             res = assistant.retriever.search(
                 case.question, k=max(KS), mode=mode, fusion=fusion, use_recency=False, use_time_parsing=False,
-                max_per_article=1, max_per_story=10,
+                max_per_article=1, max_per_story=10, max_per_source=None, relative_cutoff=0.0,
             )
             ranked = [h.article_id for h in res.hits]
             rank = ranked.index(case.article_id) + 1 if case.article_id in ranked else None

@@ -23,6 +23,7 @@ from typing import Literal
 
 from .config import Settings
 from .models import Hit
+from .query import asks_for_routine, is_routine
 from .store import Store
 from .text import TimeWindow, parse_time_window
 from .vectors import Embedder, VectorIndex
@@ -30,7 +31,11 @@ from .vectors import Embedder, VectorIndex
 Mode = Literal["hybrid", "bm25", "dense"]
 Fusion = Literal["convex", "rrf"]
 RRF_K = 60
+ROUTINE_PENALTY = 0.5  # fuel prices, "stocks to watch"... unless the question asks for them
 MIN_RELEVANCE = 0.05  # convex scores are 0..1; below this a passage matched nothing useful
+# Drop passages scoring under this fraction of the best match. When a question has only
+# three good matches, the other five slots would otherwise be filled with unrelated news.
+RELATIVE_CUTOFF = 0.4
 
 
 @dataclass
@@ -94,6 +99,8 @@ class Retriever:
         use_time_parsing: bool = True,
         max_per_article: int = 2,
         max_per_story: int = 3,
+        max_per_source: int | None = 2,
+        relative_cutoff: float = RELATIVE_CUTOFF,
         now: datetime | None = None,
     ) -> SearchResult:
         k = k or self.settings.top_k
@@ -101,7 +108,10 @@ class Retriever:
         window = parse_time_window(query, now) if use_time_parsing else TimeWindow(None, None, False)
         effective_since = since or window.since
 
-        args = (query, k, categories, sources, mode, fusion, use_recency, max_per_article, max_per_story, now)
+        if sources:
+            max_per_source = None  # the user asked for these outlets specifically
+        args = (query, k, categories, sources, mode, fusion, use_recency,
+                (max_per_article, max_per_story, max_per_source, relative_cutoff), now)
         hits = self._search(*args, since=effective_since, wants_recent=window.wants_recent)
         relaxed = False
         if not hits and effective_since is not None and since is None:
@@ -109,8 +119,9 @@ class Retriever:
             relaxed = True
         return SearchResult(hits, window, relaxed)
 
-    def _search(self, query, k, categories, sources, mode, fusion, use_recency, max_per_article, max_per_story,
+    def _search(self, query, k, categories, sources, mode, fusion, use_recency, caps,
                 now, *, since, wants_recent) -> list[Hit]:
+        max_per_article, max_per_story, max_per_source, relative_cutoff = caps
         pool = max(k * 6, 40)
         rankings: list[list[str]] = []
         cosine: dict[str, float] = {}
@@ -143,6 +154,7 @@ class Retriever:
         # "latest"/"today" questions lean harder on freshness.
         half_life = self.settings.recency_half_life_hours / (3 if wants_recent else 1)
         weight = 0.5 if wants_recent else 0.2
+        demote_routine = not asks_for_routine(query)
         for cid, hit in hits.items():
             decay = recency_decay(hit.published_at, now, half_life)
             hit.signals = {"relevance": relevance[cid], "recency": decay}
@@ -151,20 +163,41 @@ class Retriever:
             if cid in bm25:
                 hit.signals["bm25"] = bm25[cid]
             hit.score = relevance[cid] * ((1 - weight) + weight * decay) if use_recency else relevance[cid]
+            if demote_routine and is_routine(hit.title):
+                hit.score *= ROUTINE_PENALTY
+                hit.signals["routine"] = 1.0
 
         ranked = sorted(hits.values(), key=lambda h: h.score, reverse=True)
+        floor = relative_cutoff * max(relevance.values()) if fusion == "convex" else 0.0
         per_article: dict[str, int] = defaultdict(int)
         per_story: dict[str, int] = defaultdict(int)
+        per_source: dict[str, int] = defaultdict(int)
         out: list[Hit] = []
+        source_capped: list[Hit] = []
         for hit in ranked:
-            if fusion == "convex" and hit.signals["relevance"] < MIN_RELEVANCE:
+            if fusion == "convex" and hit.signals["relevance"] < max(MIN_RELEVANCE, floor):
                 continue
+            story = hit.story_id or hit.article_id
+            if per_article[hit.article_id] >= max_per_article or per_story[story] >= max_per_story:
+                continue
+            if max_per_source is not None and per_source[hit.source] >= max_per_source:
+                source_capped.append(hit)
+                continue
+            per_article[hit.article_id] += 1
+            per_story[story] += 1
+            per_source[hit.source] += 1
+            out.append(hit)
+            if len(out) == k:
+                break
+        # A niche topic may only be covered by one or two outlets; better to
+        # repeat an outlet than to return too few passages.
+        for hit in source_capped:
+            if len(out) == k:
+                break
             story = hit.story_id or hit.article_id
             if per_article[hit.article_id] >= max_per_article or per_story[story] >= max_per_story:
                 continue
             per_article[hit.article_id] += 1
             per_story[story] += 1
             out.append(hit)
-            if len(out) == k:
-                break
         return out
