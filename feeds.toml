@@ -1,0 +1,151 @@
+# News sources polled by `newsrag ingest`.
+#
+# Categories are free-form, but keeping them to a small shared set lets you
+# filter across outlets: india, world, business, tech, science, sports, top.
+# Set `enabled = false` on a source to skip it without deleting it.
+
+# ---------------------------------------------------------------- India ----
+
+[[source]]
+name = "Times of India"
+region = "india"
+feeds = [
+  { url = "https://timesofindia.indiatimes.com/rssfeedstopstories.cms", category = "top" },
+  { url = "https://timesofindia.indiatimes.com/rssfeeds/-2128936835.cms", category = "india" },
+  { url = "https://timesofindia.indiatimes.com/rssfeeds/296589292.cms", category = "world" },
+  { url = "https://timesofindia.indiatimes.com/rssfeeds/1898055.cms", category = "business" },
+  { url = "https://timesofindia.indiatimes.com/rssfeeds/66949542.cms", category = "tech" },
+  { url = "https://timesofindia.indiatimes.com/rssfeeds/4719148.cms", category = "sports" },
+]
+
+[[source]]
+name = "The Hindu"
+region = "india"
+feeds = [
+  { url = "https://www.thehindu.com/news/national/feeder/default.rss", category = "india" },
+  { url = "https://www.thehindu.com/news/international/feeder/default.rss", category = "world" },
+  { url = "https://www.thehindu.com/business/feeder/default.rss", category = "business" },
+  { url = "https://www.thehindu.com/sci-tech/feeder/default.rss", category = "science" },
+  { url = "https://www.thehindu.com/sport/feeder/default.rss", category = "sports" },
+]
+
+[[source]]
+name = "The Indian Express"
+region = "india"
+feeds = [
+  { url = "https://indianexpress.com/section/india/feed/", category = "india" },
+  { url = "https://indianexpress.com/section/world/feed/", category = "world" },
+  { url = "https://indianexpress.com/section/business/feed/", category = "business" },
+  { url = "https://indianexpress.com/section/technology/feed/", category = "tech" },
+  { url = "https://indianexpress.com/section/sports/feed/", category = "sports" },
+]
+
+[[source]]
+name = "Hindustan Times"
+region = "india"
+feeds = [
+  { url = "https://www.hindustantimes.com/feeds/rss/india-news/rssfeed.xml", category = "india" },
+  { url = "https://www.hindustantimes.com/feeds/rss/world-news/rssfeed.xml", category = "world" },
+  { url = "https://www.hindustantimes.com/feeds/rss/business/rssfeed.xml", category = "business" },
+  { url = "https://www.hindustantimes.com/feeds/rss/cricket/rssfeed.xml", category = "sports" },
+]
+
+[[source]]
+name = "NDTV"
+region = "india"
+feeds = [
+  { url = "https://feeds.feedburner.com/ndtvnews-top-stories", category = "top" },
+  { url = "https://feeds.feedburner.com/ndtvnews-india-news", category = "india" },
+  { url = "https://feeds.feedburner.com/ndtvnews-world-news", category = "world" },
+]
+
+[[source]]
+name = "The Economic Times"
+region = "india"
+feeds = [
+  { url = "https://economictimes.indiatimes.com/rssfeedstopstories.cms", category = "business" },
+  { url = "https://economictimes.indiatimes.com/markets/rssfeeds/1977021501.cms", category = "business" },
+  { url = "https://economictimes.indiatimes.com/tech/rssfeeds/13357270.cms", category = "tech" },
+]
+
+[[source]]
+name = "Mint"
+region = "india"
+feeds = [
+  { url = "https://www.livemint.com/rss/news", category = "top" },
+  { url = "https://www.livemint.com/rss/markets", category = "business" },
+  { url = "https://www.livemint.com/rss/technology", category = "tech" },
+]
+
+# --------------------------------------------------------------- Global ----
+
+[[source]]
+name = "BBC News"
+region = "global"
+feeds = [
+  { url = "https://feeds.bbci.co.uk/news/world/rss.xml", category = "world" },
+  { url = "https://feeds.bbci.co.uk/news/world/asia/india/rss.xml", category = "india" },
+  { url = "https://feeds.bbci.co.uk/news/business/rss.xml", category = "business" },
+  { url = "https://feeds.bbci.co.uk/news/technology/rss.xml", category = "tech" },
+  { url = "https://feeds.bbci.co.uk/news/science_and_environment/rss.xml", category = "science" },
+]
+
+[[source]]
+name = "The Guardian"
+region = "global"
+feeds = [
+  { url = "https://www.theguardian.com/world/rss", category = "world" },
+  { url = "https://www.theguardian.com/business/rss", category = "business" },
+  { url = "https://www.theguardian.com/technology/rss", category = "tech" },
+  { url = "https://www.theguardian.com/science/rss", category = "science" },
+]
+
+[[source]]
+name = "Al Jazeera"
+region = "global"
+feeds = [
+  { url = "https://www.aljazeera.com/xml/rss/all.xml", category = "world" },
+]
+
+[[source]]
+name = "NPR"
+region = "global"
+feeds = [
+  { url = "https://feeds.npr.org/1001/rss.xml", category = "top" },
+  { url = "https://feeds.npr.org/1004/rss.xml", category = "world" },
+]
+
+[[source]]
+name = "Deutsche Welle"
+region = "global"
+feeds = [
+  { url = "https://rss.dw.com/rdf/rss-en-all", category = "world" },
+]
+
+[[source]]
+name = "Ars Technica"
+region = "global"
+feeds = [
+  { url = "https://feeds.arstechnica.com/arstechnica/index", category = "tech" },
+]
+
+[[source]]
+name = "TechCrunch"
+region = "global"
+feeds = [
+  { url = "https://techcrunch.com/feed/", category = "tech" },
+]
+
+[[source]]
+name = "The Verge"
+region = "global"
+feeds = [
+  { url = "https://www.theverge.com/rss/index.xml", category = "tech" },
+]
+
+[[source]]
+name = "ESPNcricinfo"
+region = "global"
+feeds = [
+  { url = "https://www.espncricinfo.com/rss/content/story/feeds/0.xml", category = "sports" },
+]
