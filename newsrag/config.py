@@ -44,9 +44,9 @@ class Settings:
     embedding_model: str = field(default_factory=lambda: _env("NEWSRAG_EMBEDDING_MODEL", "BAAI/bge-small-en-v1.5"))
 
     # LLM
-    google_api_key: str | None = field(default_factory=lambda: os.getenv("GOOGLE_API_KEY"))
-    llm_model: str = field(default_factory=lambda: _env("NEWSRAG_LLM_MODEL", "gemini-2.5-flash"))
-    llm_temperature: float = field(default_factory=lambda: _env_float("NEWSRAG_LLM_TEMPERATURE", 0.2))
+    anthropic_api_key: str | None = field(default_factory=lambda: os.getenv("ANTHROPIC_API_KEY"))
+    llm_model: str = field(default_factory=lambda: _env("NEWSRAG_LLM_MODEL", "claude-sonnet-5-5"))
+    llm_effort: str = field(default_factory=lambda: _env("NEWSRAG_LLM_EFFORT", "low"))
 
     # Ingestion
     user_agent: str = field(

@@ -83,7 +83,7 @@ def cmd_ask(args) -> None:
 def cmd_chat(args) -> None:
     assistant = NewsAssistant.from_settings()
     if not assistant.llm:
-        sys.exit("Chat needs GOOGLE_API_KEY in your environment or .env file.")
+        sys.exit("Chat needs ANTHROPIC_API_KEY in your environment or .env file.")
     history: list[Turn] = []
     print("Ask about the news. Commands: /new to reset context, /quit to exit.")
     while True:

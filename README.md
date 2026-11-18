@@ -56,7 +56,7 @@ flowchart LR
         T --> B[BM25] & E[dense]
         B & E --> FU[convex fusion<br/>× recency decay]
         FU --> DV[per-article / per-story caps]
-        DV --> L[Gemini, cited answer]
+        DV --> L[Claude, cited answer]
     end
     DB --> B
     V --> E
@@ -73,7 +73,7 @@ git clone https://github.com/SriAkhilMylavarapu/Dynamic_News_RAG.git
 cd Dynamic_News_RAG
 python -m venv .venv && source .venv/bin/activate
 pip install -e .
-cp .env.example .env   # then add your GOOGLE_API_KEY
+cp .env.example .env   # then add your ANTHROPIC_API_KEY
 ```
 
 ```bash
@@ -83,7 +83,7 @@ newsrag chat                   # conversation with follow-ups
 newsrag briefing --hours 24    # today's most-covered stories
 ```
 
-Without a `GOOGLE_API_KEY`, everything except written answers still works: `ask` lists the most relevant articles instead.
+Without an `ANTHROPIC_API_KEY`, everything except written answers still works: `ask` lists the most relevant articles instead.
 
 ## Commands
 
@@ -110,7 +110,7 @@ Either leave `newsrag ingest --every 30` running, or add a cron job:
 
 ## Evaluating retrieval
 
-`newsrag eval` picks a sample of stored articles and has Gemini write one specific question from a passage in the **middle** of each article, so the question doesn't just repeat the headline. The questions are cached in `data/eval_questions.json` so later runs can be compared. It then checks whether each retrieval setup returns the source article:
+`newsrag eval` picks a sample of stored articles and has Claude write one specific question from a passage in the **middle** of each article, so the question doesn't just repeat the headline. The questions are cached in `data/eval_questions.json` so later runs can be compared. It then checks whether each retrieval setup returns the source article:
 
 ```text
 mode              recall@1   recall@3   recall@5  recall@10     mrr@10
@@ -128,8 +128,9 @@ All settings are environment variables; see [`.env.example`](.env.example). The 
 
 | Variable | Default | Notes |
 | --- | --- | --- |
-| `GOOGLE_API_KEY` | none | Needed for written answers, chat and LLM-generated eval questions |
-| `NEWSRAG_LLM_MODEL` | `gemini-2.5-flash` | Any Gemini model id |
+| `ANTHROPIC_API_KEY` | none | Needed for written answers, chat and LLM-generated eval questions |
+| `NEWSRAG_LLM_MODEL` | `claude-sonnet-5-5` | Any Claude model id, e.g. `claude-opus-5-5` for harder questions |
+| `NEWSRAG_LLM_EFFORT` | `low` | `low` / `medium` / `high`: how much the model reasons before answering |
 | `NEWSRAG_EMBEDDING_MODEL` | `BAAI/bge-small-en-v1.5` | Any [fastembed model](https://qdrant.github.io/fastembed/examples/Supported_Models/); run `reindex` after changing |
 | `NEWSRAG_RETENTION_DAYS` | `30` | Older articles are deleted on each ingest |
 | `NEWSRAG_STORY_SIMILARITY` | `0.86` | Lower values group more articles into the same story |

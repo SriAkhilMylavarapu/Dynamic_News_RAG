@@ -75,7 +75,7 @@ class FakeFetcher:
 
 @pytest.fixture
 def world(tmp_path):
-    settings = Settings(data_dir=tmp_path, embedding_model="hash", google_api_key=None,
+    settings = Settings(data_dir=tmp_path, embedding_model="hash", anthropic_api_key=None,
                         story_similarity=0.6, retention_days=30)
     feeds = [
         Feed("https://a.test/india.xml", "Outlet A", "india", "india"),
