@@ -1,1 +1,0 @@
-# CS Research Paper Simplifier
